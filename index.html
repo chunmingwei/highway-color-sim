@@ -1,0 +1,891 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>*,*::before,*::after{box-sizing:border-box}body{margin:0}</style></head><body>
+<title>國道色塊模擬 線上版</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: 左側色塊編輯台（立面格子、色票、用量），右側固定的駕駛視窗；窄螢幕時駕駛視窗在上 */
+:root{
+  --bg:#ECEFEE; --panel:#FAFBFB; --ink:#1B2425; --muted:#5A6869; --line:#D3DAD9; --grid-line:rgba(20,30,31,.22);
+  --accent:#2C6B70; --accent-ink:#FFFFFF; --accent-soft:#D7E6E6; --signal:#B57D0E; --danger:#A9442E;
+  --hud-bg:rgba(12,18,19,.70); --hud-fg:#F1F5F4; --hud-dim:#A9BABA;
+  --font-ui:"Noto Sans TC","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;
+  --font-data:"IBM Plex Mono",ui-monospace,Consolas,"Courier New",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121819; --panel:#1A2223; --ink:#E2EAE9; --muted:#93A4A4; --line:#2D3A3B; --grid-line:rgba(0,0,0,.45);
+  --accent:#62A9AE; --accent-ink:#0C1415; --accent-soft:#213839; --signal:#E2B444; --danger:#E27C63; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121819; --panel:#1A2223; --ink:#E2EAE9; --muted:#93A4A4; --line:#2D3A3B; --grid-line:rgba(0,0,0,.45);
+  --accent:#62A9AE; --accent-ink:#0C1415; --accent-soft:#213839; --signal:#E2B444; --danger:#E27C63; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 40px}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:22px;font-weight:700;letter-spacing:.03em}
+h2{font-size:15px;font-weight:700;letter-spacing:.04em}
+h3{font-size:12px;font-weight:500;color:var(--muted);letter-spacing:.06em}
+.mono{font-family:var(--font-data);font-variant-numeric:tabular-nums}
+.top{max-width:1640px;margin:0 auto 16px;display:flex;flex-wrap:wrap;gap:10px 24px;align-items:flex-end;justify-content:space-between}
+.sub{margin:3px 0 0;color:var(--muted);font-size:13px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.layout{max-width:1640px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.bottom{display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.between{justify-content:space-between}
+.note{color:var(--muted);font-size:12.5px;margin:0}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:5px 12px;cursor:pointer;line-height:1.5;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,.seg input:focus-visible+label,input:focus-visible,select:focus-visible,canvas:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.field{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.field input[type=number],.field select{font:inherit;font-family:var(--font-data);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 6px;width:5.5em}
+.field select{width:auto}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{padding:4px 11px;font-size:13px;cursor:pointer;border-right:1px solid var(--line);user-select:none}
+.seg label:last-of-type{border-right:0}
+.seg input:checked+label{background:var(--accent);color:var(--accent-ink)}
+.ctl{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ctl>span{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.ctl>.seg{align-self:flex-start}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line)}
+.tab{font:inherit;font-size:14px;font-weight:500;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:6px 14px 8px;cursor:pointer}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.spec{font-family:var(--font-data);font-size:12.5px;color:var(--ink);background:var(--accent-soft);border-radius:6px;padding:6px 10px}
+.gridscroll{overflow-x:auto;padding-bottom:4px}
+.dir{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px}
+.dir b{color:var(--ink);font-weight:500}
+#gridCanvas{display:block;touch-action:none;cursor:crosshair}
+#gridCanvas.locked{cursor:not-allowed;opacity:.55}
+#tileCanvas{display:block;width:100%;image-rendering:pixelated}
+.current{display:inline-flex;align-items:center;gap:8px;font-size:13px}
+.chip{width:22px;height:22px;border-radius:5px;border:1px solid var(--grid-line);flex:none}
+.pal{display:flex;flex-direction:column;gap:6px}
+.pal-row{display:grid;grid-template-columns:auto 2.6em 6.4em minmax(0,1fr) minmax(0,1.1fr) 3.6em auto;gap:6px;align-items:center;padding:3px 4px;border-radius:7px;border:1px solid transparent}
+.pal-row.sel{border-color:var(--accent);background:var(--accent-soft)}
+.pal-row input{font:inherit;font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:3px 6px;min-width:0;width:100%}
+.pal-row input.hex{font-family:var(--font-data)}
+.pal-row .swatch{width:30px;height:26px;border-radius:5px;border:1px solid var(--grid-line);cursor:pointer;padding:0}
+.pal-row .code,.pal-row .cnt{font-family:var(--font-data);font-size:12px;color:var(--muted)}
+.pal-row .del{font:inherit;border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px}
+.pal-row .del:disabled{opacity:.3;cursor:not-allowed}
+@media (max-width:560px){.pal-row{grid-template-columns:auto 2.6em minmax(0,1fr) auto;}.pal-row .pms,.pal-row .cnt{grid-column:2 / -1}.pal-row .hex{grid-column:3}}
+.tablewrap{overflow-x:auto}
+.paltable td{padding:4px 6px;vertical-align:middle}
+.paltable tr.sel td{background:var(--accent-soft)}
+.paltable input{font:inherit;font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:3px 6px;width:100%;min-width:8em}
+.paltable input.hex{font-family:var(--font-data);width:6.8em;min-width:6.8em}
+.paltable .swatch{width:30px;height:26px;border-radius:5px;border:1px solid var(--grid-line);cursor:pointer;padding:0;display:block}
+.paltable .code{font-family:var(--font-data);font-size:12px;color:var(--muted)}
+.paltable .del{font:inherit;border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px}
+.paltable .del:disabled{opacity:.3;cursor:not-allowed}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:500;color:var(--muted);font-size:12px}
+td.num{text-align:right;font-family:var(--font-data);font-variant-numeric:tabular-nums}
+.viewport{position:relative;width:100%;aspect-ratio:16/9;max-height:62vh;background:#0A0F16;border-radius:8px;overflow:hidden;touch-action:none;cursor:grab}
+.viewport canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;left:12px;top:12px;background:var(--hud-bg);color:var(--hud-fg);border-radius:8px;padding:8px 12px;pointer-events:none;display:flex;flex-direction:column;gap:2px}
+.hud .spd{font-family:var(--font-data);font-size:30px;font-weight:600;line-height:1}
+.hud .spd small{font-size:12px;font-weight:400;color:var(--hud-dim);margin-left:4px}
+.hud .km{font-family:var(--font-data);font-size:13px;color:var(--hud-dim)}
+.hud-r{position:absolute;right:12px;top:12px;background:var(--hud-bg);color:var(--hud-fg);border-radius:8px;padding:5px 10px;font-size:12px;pointer-events:none}
+.hint{position:absolute;left:12px;bottom:10px;color:var(--hud-dim);font-size:12px;pointer-events:none;text-shadow:0 1px 2px #000}
+.speedrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center}
+.speedrow output{font-family:var(--font-data);font-size:20px;font-weight:600;min-width:5.4em;text-align:right}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.ctlgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px 16px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.fact{border-left:3px solid var(--signal);padding:2px 10px}
+.fact b{display:block;font-family:var(--font-data);font-size:17px;font-variant-numeric:tabular-nums}
+.fact span{font-size:12px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;max-width:calc(100% - 32px)}
+.toast.show{opacity:1}
+.err{color:var(--hud-fg);padding:24px;font-size:14px}
+@media (prefers-reduced-motion: reduce){.toast{transition:none}}
+</style>
+
+<header class="top">
+  <div>
+    <h1>國道色塊行車模擬</h1>
+    <p class="sub">國 1 楊梅—頭份｜1 m = 50 px｜圖面左邊＝行車前方｜依 2026-10-28 色彩計畫說明</p>
+  </div>
+  <div class="actions">
+    <button class="btn" id="btnUndo" title="Ctrl+Z">復原</button>
+    <button class="btn" id="btnRedo" title="Ctrl+Y">重做</button>
+    <button class="btn" id="btnSaveJson">存專案 .json</button>
+    <label class="btn" for="fileJson">開啟專案</label>
+    <input type="file" id="fileJson" accept=".json,application/json" hidden>
+    <button class="btn" id="btnReset">載入範例</button>
+  </div>
+</header>
+
+<main class="layout">
+    <section class="panel" aria-labelledby="edTitle">
+      <div class="row between">
+        <h2 id="edTitle">立面色塊</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" id="tab-wall" aria-selected="true">隔音牆・南下</button>
+          <button class="tab" role="tab" id="tab-wallN" aria-selected="false">隔音牆・北上</button>
+          <button class="tab" role="tab" id="tab-fence" aria-selected="false">施工圍籬</button>
+        </div>
+      </div>
+      <div class="spec" id="specLine"></div>
+      <div class="row">
+        <label class="field">論文提案預設 <select id="selPreset">
+          <option value="">選擇方案（會取代南下、北上、圍籬三張）</option>
+          <option value="city">A 科技都市段 91k8–97k8｜灰＋灰藍</option>
+          <option value="forest">B 淺山森林段 97k8–105k8｜橄欖</option>
+          <option value="farm">C 田園聚落段 105k8–110k｜暖褐</option>
+        </select></label>
+        <span class="note">依韓國道路公社 2018 色彩指南：調和型 3 色、上淺下深、60／30／10</span>
+      </div>
+      <div class="row" id="sizeWall">
+        <label class="field">單元寬度 <input type="number" id="inpWallW" min="10" max="200" step="2"> m</label>
+        <label class="field">牆高 <select id="selWallH"><option value="3">3 m（6 排）</option><option value="4">4 m（8 排）</option><option value="5">5 m（10 排）</option><option value="6">6 m（12 排）</option></select></label>
+      </div>
+      <div class="row between" id="northBar" hidden>
+        <p class="note" id="northNote"></p>
+        <button class="btn" id="btnNorthToggle"></button>
+      </div>
+      <div class="row" id="sizeFence" hidden>
+        <label class="field">單元寬度 <input type="number" id="inpFenceW" min="10" max="200" step="2"> m</label>
+        <label class="field">水平色帶分段 <select id="selFenceRows"></select></label>
+      </div>
+      <div class="row between">
+        <div class="seg" id="segTool" aria-label="工具"></div>
+        <div class="row">
+          <span class="current"><span class="chip" id="curChip"></span><span id="curLabel"></span></span>
+          <button class="btn" id="btnMirror" title="把目前這張立面左右翻轉">左右鏡像</button>
+          <button class="btn" id="btnFillAll">全部填滿目前色</button>
+        </div>
+      </div>
+      <div>
+        <div class="dir"><b>← 行車前方</b><span>車子先經過這端 →</span></div>
+        <div class="gridscroll" id="gridScroll"><canvas id="gridCanvas" tabindex="0" aria-label="立面色塊格子，點選或拖曳上色"></canvas></div>
+        <p class="note" id="gridNote"></p>
+      </div>
+      <div>
+        <h3>實際比例｜兩個單元相接，檢查接縫</h3>
+        <canvas id="tileCanvas" height="20"></canvas>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="btnPng">匯出 <span id="pngName">隔音牆.png</span></button>
+        <label class="field">解析度 <select id="selScale"><option value="1">1×（標準）</option><option value="2">2×</option></select></label>
+        <label class="btn" for="filePng">匯入 PNG 取色</label>
+        <input type="file" id="filePng" accept="image/png,image/jpeg" hidden>
+      </div>
+      <p class="note" id="excelNote"></p>
+    </section>
+
+  <div class="bottom">
+    <section class="panel" aria-labelledby="palTitle">
+      <div class="row between">
+        <h2 id="palTitle">色票與用量</h2>
+        <div class="row">
+          <input type="color" id="newColor" value="#6E8F7A" aria-label="新顏色">
+          <button class="btn" id="btnAddColor">加入色票</button>
+          <button class="btn" id="btnCopyMd">複製表格（給方案說明.md）</button>
+          <button class="btn" id="btnSaveMd">下載 色票表.md</button>
+          <button class="btn primary" id="btnShare" title="把目前的色塊排列與色票寫進網址，對方打開就看得到">複製分享連結</button>
+        </div>
+      </div>
+      <p class="note">點色塊選色。改色碼會同步更新所有用到它的格子。範例色只是示意，請填實際色號與 Pantone。片數以一個單元計，片／公里為南北兩向合計。</p>
+      <div class="tablewrap"><table class="paltable" id="palTable"></table></div>
+      <textarea id="mdFallback" hidden readonly style="width:100%;height:8em;font-family:var(--font-data);font-size:12px"></textarea>
+    </section>
+  </div>
+
+    <section class="panel sim" aria-labelledby="simTitle">
+      <div class="row between">
+        <h2 id="simTitle">駕駛視角</h2>
+        <button class="btn primary" id="btnPlay">暫停</button>
+      </div>
+      <div class="viewport" id="viewport">
+        <canvas id="sim3d" aria-label="3D 駕駛模擬畫面"></canvas>
+        <div class="hud"><div class="spd"><span id="hudSpeed">0</span><small>km/h</small></div><div class="km" id="hudKm"></div></div>
+        <div class="hud-r" id="hudScene"></div>
+        <div class="hint">拖曳畫面轉頭，雙擊回正</div>
+      </div>
+      <div class="speedrow">
+        <span class="field">車速</span>
+        <input type="range" id="spd" min="0" max="130" step="5" aria-label="車速">
+        <output id="spdOut" for="spd"></output>
+      </div>
+      <div class="row" id="presets">
+        <button class="btn" data-v="0">停等 0</button>
+        <button class="btn" data-v="20">塞車 20</button>
+        <button class="btn" data-v="60">車多 60</button>
+        <button class="btn" data-v="100">速限 100</button>
+        <button class="btn" data-v="120">120</button>
+      </div>
+      <div class="facts" id="facts"></div>
+      <div class="ctlgrid">
+        <div class="ctl"><span>情境</span><div class="seg" id="segScene"></div></div>
+        <div class="ctl"><span>行車方向</span><div class="seg" id="segDir"></div></div>
+        <div class="ctl"><span>天候</span><div class="seg" id="segWeather"></div></div>
+        <div class="ctl"><span>日照時段</span><div class="seg" id="segSun"></div></div>
+        <div class="ctl"><span>車道</span><div class="seg" id="segLane"></div></div>
+        <div class="ctl"><span>視點高度</span><div class="seg" id="segEye"></div></div>
+        <div class="ctl"><span>視線方向（右＋／左－對向） <b class="mono" id="yawOut"></b></span><input type="range" id="yaw" min="-80" max="80" step="1" aria-label="視線方向，正值往右看本側，負值往左看對向"></div>
+        <div class="ctl"><span>H 型鋼柱與頂蓋</span><div class="row"><input type="color" id="colColor" aria-label="鋼柱顏色"><span class="mono note" id="colHex"></span><label class="field"><input type="checkbox" id="chkSeams"> 顯示板縫</label></div></div>
+      </div>
+      <p class="note">模型假設：車道 3.75 m、外路肩 3 m、護欄高 1.0 m（隔音牆從護欄頂起算）；施工期間圍籬立在 0.3 m 防溢座上、緊貼車道，隔音牆在工區外緣約 14.5 m 處。對向車道以中央分隔帶鏡射，對向的隔音牆與圍籬依對向車流方向鋪排（對向駕駛的行車前方＝你的後方）。本工具只模擬隔音牆車道側與鋼板圍籬，不含鋼構橋。</p>
+    </section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const STORE='vb-guodao-color-sim-v1';
+const LEN=1800, AHEAD=600, FENCE_H=2.4, CURB=0.3, BARRIER=1.0, WORK_X=14.5;
+const MIRROR_X=-31.85; /* 對向車道：x' = MIRROR_X - x，以中央分隔帶中心鏡射 */
+const FENCE_ROWS=[1,2,3,4,6,8,12];
+const LANE_X=[-4.875,-8.625,-12.375];
+const EYE={car:1.2,truck:2.4};
+const DIR_TXT={S:'南下',N:'北上'};
+const $=s=>document.querySelector(s);
+const hexRe=/^#?([0-9a-f]{6})$/i;
+const normHex=h=>{const m=hexRe.exec(String(h||'').trim());return m?'#'+m[1].toUpperCase():null};
+
+/* ---------- 範例資料 ---------- */
+function makeSample(){
+  const C={pale:'#DCE3E1',ash:'#8FA7A6',mineral:'#3D7C80',mist:'#9DB4C4',amber:'#E3B23C'};
+  const palette=[
+    {hex:C.pale,name:'淺霧白（範例）',pantone:''},
+    {hex:C.ash,name:'灰礦物青（範例）',pantone:''},
+    {hex:C.mineral,name:'礦物青（範例）',pantone:''},
+    {hex:C.mist,name:'霧藍（範例）',pantone:''},
+    {hex:C.amber,name:'警示黃（範例）',pantone:''}
+  ];
+  const wall=[];
+  for(let r=0;r<6;r++){const row=[];for(let c=0;c<30;c++){
+    const rise=Math.round((29-c)/29*4);
+    let h=C.ash;
+    if(r===0)h=C.pale;else if(r>=6-rise)h=C.mineral;else if((c+r*2)%9===0)h=C.mist;
+    row.push(h);}wall.push(row);}
+  const fence=[];const abc=[C.ash,C.pale,C.mist];
+  for(let r=0;r<8;r++){const row=[];for(let c=0;c<10;c++)row.push(r===7?C.amber:abc[c%3]);fence.push(row);}
+  return{palette,current:C.mineral,
+    wall:{unitW:60,heightM:3,grid:wall},wallN:null,
+    fence:{unitW:20,grid:fence},
+    sim:{speed:100,scene:'built',dir:'S',weather:'sun',sun:'am',lane:0,eye:'car',yaw:22,seams:true,column:'#4A4D50'}};
+}
+/* ---------- 論文提案預設（韓國道路公社 2018 色彩指南 30 色）---------- */
+const EX={
+  '01':['#B2AD9F','5Y 7/1','S 3005-Y20R'],'02':['#989386','5Y 6/1','S 4005-Y20R'],'03':['#7D796D','5Y 5/1','S 6005-Y20R'],
+  '04':['#646054','5Y 4/1','S 7005-G80Y'],'06':['#BCAB96','10YR 7/2','S 3010-Y30R'],'07':['#A2917D','10YR 6/2','S 4010-Y30R'],
+  '08':['#877764','10YR 5/2','S 5010-Y30R'],'11':['#9C9379','5Y 6/2','S 4010-G90Y'],'12':['#817961','5Y 5/2','S 5010-G90Y'],
+  '13':['#636149','10Y 4/2','S 7010-G70Y'],'14':['#4A4934','10Y 3/2','S 7020-G70Y'],'18':['#667E82','2.5B 5/2','S 5020-B30G'],
+  '21':['#E3E3E3','N9','S 1000-N']
+};
+// 牆：上主調、下輔助，點綴放最底排長色帶；每段 6 欄以上，垂直交界間距 ≥10 m。格數固定 108／54／18。
+const PRESETS={
+  city:{label:'A 科技都市段',wall:['01','03','18'],blocks:[[6,2],[6,3],[6,2],[6,3],[6,2]],accent:[[3,12],[18,27]],fence:['02','04','21']},
+  forest:{label:'B 淺山森林段',wall:['11','12','13'],blocks:[[5,2],[6,3],[8,2],[6,3],[5,2]],accent:[[2,8],[12,18],[22,28]],fence:['11','14',null]},
+  farm:{label:'C 田園聚落段',wall:['06','07','08'],blocks:[[7,2],[6,3],[4,2],[6,3],[7,2]],accent:[[6,24]],fence:['02','04','21']}
+};
+function makePreset(key){
+  const P=PRESETS[key],hx=k=>EX[k][0];
+  const [main,sub,acc]=P.wall.map(hx);
+  const wall=Array.from({length:6},()=>Array(30).fill(main));
+  let c0=0;P.blocks.forEach(([n,h])=>{for(let c=c0;c<c0+n;c++)for(let r=6-h;r<6;r++)wall[r][c]=sub;c0+=n});
+  P.accent.forEach(([a,b])=>{for(let c=a;c<b;c++)wall[5][c]=acc});
+  // 圍籬 12 段（每段 0.2 m）：上段淺色 3 段、白色細帶 1 段、下段深色 8 段；淺山段為 11／14 兩色 25／75。
+  const [fl,fd,fw]=P.fence;
+  const fence=Array.from({length:12},(_,r)=>Array(10).fill(hx(r<3?fl:(fw&&r===3)?fw:fd)));
+  const used=[...P.wall,...P.fence.filter(Boolean)].filter((k,i,a)=>a.indexOf(k)===i);
+  const palette=used.map(k=>({hex:EX[k][0],name:'EX-'+k+' '+EX[k][1]+'｜NCS '+EX[k][2],pantone:''}));
+  return{palette,current:main,wall:{unitW:60,heightM:3,grid:wall},wallN:null,fence:{unitW:20,grid:fence}};
+}
+function validGrid(g){return Array.isArray(g)&&g.length>0&&g.every(r=>Array.isArray(r)&&r.length===g[0].length&&r.every(h=>normHex(h)))}
+function sanitize(s){
+  const d=makeSample();
+  if(!s||!validGrid(s.wall&&s.wall.grid)||!validGrid(s.fence&&s.fence.grid)||!Array.isArray(s.palette))return null;
+  const out={palette:s.palette.filter(p=>normHex(p.hex)).map(p=>({hex:normHex(p.hex),name:String(p.name||''),pantone:String(p.pantone||'')})),
+    current:normHex(s.current)||d.current,
+    wall:{grid:s.wall.grid.map(r=>r.map(normHex))},wallN:null,fence:{grid:s.fence.grid.map(r=>r.map(normHex))},
+    sim:Object.assign({},d.sim,s.sim||{})};
+  out.wall.unitW=out.wall.grid[0].length*2;out.wall.heightM=out.wall.grid.length*0.5;
+  out.fence.unitW=out.fence.grid[0].length*2;
+  if(!FENCE_ROWS.includes(out.fence.grid.length))return null;
+  const ng=s.wallN&&s.wallN.grid;
+  if(validGrid(ng)&&ng.length===out.wall.grid.length&&ng[0].length===out.wall.grid[0].length)out.wallN={grid:ng.map(r=>r.map(normHex))};
+  out.sim.column=normHex(out.sim.column)||d.sim.column;
+  ensurePalette(out);
+  return out;
+}
+function allGrids(s){return [s.wall.grid,s.fence.grid].concat(s.wallN?[s.wallN.grid]:[])}
+function ensurePalette(s){
+  const have=new Set(s.palette.map(p=>p.hex));
+  allGrids(s).forEach(g=>g.forEach(r=>r.forEach(h=>{if(!have.has(h)){have.add(h);s.palette.push({hex:h,name:'匯入色',pantone:''});}})));
+  if(!have.has(s.current))s.current=s.palette[0]?s.palette[0].hex:'#808080';
+}
+let state=null;
+try{state=sanitize(JSON.parse(localStorage.getItem(STORE)));}catch(e){state=null}
+if(!state)state=makeSample();
+let saveTimer=0;
+function persist(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}},400)}
+
+/* ---------- 復原 ---------- */
+const undoStack=[],redoStack=[];
+const snap=()=>JSON.stringify({palette:state.palette,current:state.current,wall:state.wall,wallN:state.wallN,fence:state.fence});
+function pushUndo(){undoStack.push(snap());if(undoStack.length>120)undoStack.shift();redoStack.length=0;syncUndo()}
+function restore(str){const o=JSON.parse(str);Object.assign(state,o);afterChange()}
+function undo(){if(!undoStack.length)return;redoStack.push(snap());restore(undoStack.pop());syncUndo()}
+function redo(){if(!redoStack.length)return;undoStack.push(snap());restore(redoStack.pop());syncUndo()}
+function syncUndo(){$('#btnUndo').disabled=!undoStack.length;$('#btnRedo').disabled=!redoStack.length}
+
+/* ---------- 共用 ---------- */
+const toastEl=$('#toast');let toastT=0;
+function toast(msg){toastEl.textContent=msg;toastEl.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>toastEl.classList.remove('show'),2600)}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+let dl=null;
+try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(x=>{dl=x}).catch(()=>{})}catch(e){}
+async function offerFile(filename,blob){
+  if(dl){
+    try{await dl.save({filename,data:blob});toast('已存檔：'+filename)}
+    catch(e){toast(e&&e.code==='declined'?'已取消存檔':'這個畫面無法存檔（'+(e&&e.code||'unavailable')+'）')}
+    return;
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);toast('下載：'+filename);
+}
+function seg(id,name,opts,get,set){
+  const el=document.getElementById(id);el.innerHTML='';
+  opts.forEach(([v,label],i)=>{
+    const inp=document.createElement('input');inp.type='radio';inp.name=name;inp.id=name+'-'+i;inp.value=String(v);inp.checked=String(get())===String(v);
+    const lb=document.createElement('label');lb.htmlFor=inp.id;lb.textContent=label;
+    inp.addEventListener('change',()=>{if(inp.checked)set(v)});el.append(inp,lb);
+  });
+}
+function setSeg(name,v){const el=document.querySelector('input[name="'+name+'"][value="'+v+'"]');if(el)el.checked=true}
+
+/* ---------- 編輯器 ---------- */
+/* active：wall＝南下隔音牆，wallN＝北上隔音牆（null 時沿用南下），fence＝施工圍籬 */
+let active='wall',tool='brush',painting=false,hover=null,geom=null;
+const gc=$('#gridCanvas'),gscroll=$('#gridScroll');
+const isWall=k=>(k||active)!=='fence';
+const gridOf=k=>{k=k||active;return k==='wallN'?(state.wallN||state.wall).grid:state[k].grid};
+const unitOf=k=>isWall(k)?state.wall.unitW:state.fence.unitW;
+const locked=()=>active==='wallN'&&!state.wallN;
+const dims=k=>{const g=gridOf(k);return{rows:g.length,cols:g[0].length}};
+function fenceRowM(){return FENCE_H/state.fence.grid.length}
+
+function layoutGrid(){
+  const {rows,cols}=dims();
+  const avail=Math.max(200,gscroll.clientWidth);
+  let cw=Math.max(14,Math.floor(avail/cols)),ch;
+  if(isWall())ch=Math.max(20,Math.round(cw*0.25));
+  else{cw=Math.min(72,cw);ch=Math.max(12,Math.round(cw*1.2/rows))}
+  return{cw,ch,rows,cols,w:cw*cols,h:ch*rows,ruler:20};
+}
+function drawGrid(){
+  const L=geom=layoutGrid(),g=gridOf(),dpr=window.devicePixelRatio||1;
+  gc.classList.toggle('locked',locked());
+  gc.width=L.w*dpr;gc.height=(L.h+L.ruler)*dpr;gc.style.width=L.w+'px';gc.style.height=(L.h+L.ruler)+'px';
+  const x=gc.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,L.w,L.h+L.ruler);
+  for(let r=0;r<L.rows;r++)for(let c=0;c<L.cols;c++){x.fillStyle=g[r][c];x.fillRect(c*L.cw,r*L.ch,L.cw,L.ch)}
+  x.strokeStyle=cssVar('--grid-line');x.lineWidth=1;x.beginPath();
+  for(let c=0;c<=L.cols;c++){const px=Math.min(L.w-0.5,c*L.cw+0.5);x.moveTo(px,0);x.lineTo(px,L.h)}
+  for(let r=0;r<=L.rows;r++){const py=Math.min(L.h-0.5,r*L.ch+0.5);x.moveTo(0,py);x.lineTo(L.w,py)}
+  x.stroke();
+  x.strokeStyle=cssVar('--ink');x.lineWidth=1.5;x.beginPath();
+  for(let c=0;c<=L.cols;c+=5){const px=Math.min(L.w-0.75,Math.max(0.75,c*L.cw));x.moveTo(px,0);x.lineTo(px,L.h+6)}
+  x.stroke();
+  if(hover&&!locked()&&hover.r<L.rows&&hover.c<L.cols){
+    x.strokeStyle=cssVar('--ink');x.lineWidth=2;
+    if(tool==='row')x.strokeRect(1,hover.r*L.ch+1,L.w-2,L.ch-2);
+    else if(tool==='col')x.strokeRect(hover.c*L.cw+1,1,L.cw-2,L.h-2);
+    else x.strokeRect(hover.c*L.cw+1,hover.r*L.ch+1,L.cw-2,L.ch-2);
+  }
+  x.fillStyle=cssVar('--muted');x.font='11px '+cssVar('--font-data');x.textBaseline='top';
+  for(let c=0;c<=L.cols;c+=5){const m=c*2,px=c*L.cw;x.textAlign=c===0?'left':(c===L.cols?'right':'center');x.fillText(m+' m',px,L.h+7)}
+}
+function hit(e){
+  const rect=gc.getBoundingClientRect(),L=geom;
+  const c=Math.floor((e.clientX-rect.left)/L.cw),r=Math.floor((e.clientY-rect.top)/L.ch);
+  if(c<0||r<0||c>=L.cols||r>=L.rows)return null;return{r,c};
+}
+function applyAt(cell){
+  const g=gridOf(),h=state.current;let changed=false;
+  const set=(r,c)=>{if(g[r][c]!==h){g[r][c]=h;changed=true}};
+  if(tool==='row')for(let c=0;c<g[0].length;c++)set(cell.r,c);
+  else if(tool==='col')for(let r=0;r<g.length;r++)set(r,cell.c);
+  else set(cell.r,cell.c);
+  if(changed){texDirty=true;drawGrid()}
+}
+const lockedMsg='北上目前沿用南下的圖，請先按「北上另外設計」';
+gc.addEventListener('pointerdown',e=>{
+  const cell=hit(e);if(!cell)return;
+  if(tool==='pick'){state.current=gridOf()[cell.r][cell.c];renderPalette();renderCurrent();toast('已選取 '+state.current);return}
+  if(locked()){toast(lockedMsg);return}
+  gc.setPointerCapture(e.pointerId);pushUndo();painting=true;applyAt(cell);
+});
+gc.addEventListener('pointermove',e=>{
+  const cell=hit(e);const key=cell?cell.r+','+cell.c:'';const old=hover?hover.r+','+hover.c:'';
+  hover=cell;if(painting&&cell)applyAt(cell);else if(key!==old)drawGrid();
+});
+gc.addEventListener('pointerleave',()=>{if(!painting){hover=null;drawGrid()}});
+function endPaint(){if(painting){painting=false;afterChange()}}
+gc.addEventListener('pointerup',endPaint);gc.addEventListener('pointercancel',endPaint);
+
+function drawTile(){
+  const tc=$('#tileCanvas'),g=gridOf(),{rows,cols}=dims();
+  const unitW=unitOf(),heightM=isWall()?state.wall.heightM:FENCE_H;
+  const w=Math.max(200,tc.clientWidth||tc.parentElement.clientWidth),pxm=w/(unitW*2);
+  const h=Math.max(6,Math.round(heightM*pxm));const dpr=window.devicePixelRatio||1;
+  tc.width=Math.round(w*dpr);tc.height=Math.round(h*dpr);tc.style.height=h+'px';
+  const x=tc.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);
+  const cw=w/(cols*2),rh=h/rows;
+  for(let k=0;k<2;k++)for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){x.fillStyle=g[r][c];x.fillRect(Math.floor((k*cols+c)*cw),Math.floor(r*rh),Math.ceil(cw)+1,Math.ceil(rh)+1)}
+  x.fillStyle=cssVar('--danger');x.fillRect(Math.round(w/2)-1,0,2,h);
+}
+const PNG_NAME={wall:'隔音牆.png',wallN:'北上_車道側.png',fence:'施工圍籬.png'};
+function renderSpec(){
+  ['wall','wallN','fence'].forEach(k=>$('#tab-'+k).setAttribute('aria-selected',String(k===active)));
+  $('#sizeWall').hidden=!isWall();$('#sizeFence').hidden=isWall();$('#northBar').hidden=active!=='wallN';
+  const {rows,cols}=dims();
+  if(isWall()){
+    const W=state.wall.unitW,H=state.wall.heightM;
+    $('#specLine').textContent=`${active==='wall'?'南下':'北上'}｜單元 ${W} m × 牆高 ${H} m → 匯出 ${W*50} × ${H*50} px｜${cols} 片 × ${rows} 排（每片 2 m × 0.5 m）`;
+    $('#gridNote').textContent='編輯格的高度已放大方便點選；實際比例看下方長條。板塊模式：每格一個純色。';
+    $('#inpWallW').value=W;$('#selWallH').value=String(H);
+  }else{
+    const W=state.fence.unitW;
+    $('#specLine').textContent=`施工圍籬｜單元 ${W} m × 2.4 m → 匯出 ${W*50} × 120 px｜${cols} 片鋼板 × ${rows} 段色帶（每段 ${+(fenceRowM()).toFixed(2)} m）`;
+    $('#gridNote').textContent='一欄是一片 2 m 寬的鋼板。建議每片單一純色或簡單的水平色帶，好施工、好補漆。南下、北上的圍籬共用這張圖。';
+    $('#inpFenceW').value=W;$('#selFenceRows').value=String(rows);
+  }
+  if(active==='wallN'){
+    $('#northNote').textContent=state.wallN?'北上使用自己的圖，匯出為 北上_車道側.png。單元寬度與牆高和南下共用。':'北上目前沿用南下的圖（說明書：沒有另交 北上_車道側.png 時沿用南下）。';
+    $('#btnNorthToggle').textContent=state.wallN?'改回沿用南下':'北上另外設計（從南下複製）';
+  }
+  $('#pngName').textContent=PNG_NAME[active];$('#btnPng').disabled=locked();
+  $('#excelNote').textContent=`對應 方案設定.xlsx「基本」表：單元寬度_m = ${state.wall.unitW}｜板層數 = ${state.wall.grid.length}｜施工圍籬單元寬度_m = ${state.fence.unitW}`;
+}
+function renderCurrent(){
+  const p=state.palette.find(p=>p.hex===state.current);
+  $('#curChip').style.background=state.current;$('#curLabel').innerHTML='';
+  const t=document.createElement('span');t.textContent=(p&&p.name?p.name+' ':'');const m=document.createElement('span');m.className='mono';m.textContent=state.current;
+  $('#curLabel').append(t,m);
+}
+$('#btnNorthToggle').addEventListener('click',()=>{
+  pushUndo();
+  if(state.wallN){state.wallN=null;toast('北上改回沿用南下的圖')}
+  else{state.wallN={grid:state.wall.grid.map(r=>r.slice())};toast('已從南下複製，可以開始改北上')}
+  afterChange();
+});
+
+/* 尺寸調整 */
+function resizeWallGrid(old,cols,rows){
+  const oR=old.length,oC=old[0].length,g=[];
+  for(let r=0;r<rows;r++){const fromBottom=rows-1-r,or=oR-1-fromBottom,src=or>=0?old[or]:old[0];g.push(Array.from({length:cols},(_,c)=>src[c%oC]))}
+  return g;
+}
+function resizeWall(W,H){
+  const cols=W/2,rows=Math.round(H/0.5);
+  state.wall={unitW:W,heightM:H,grid:resizeWallGrid(state.wall.grid,cols,rows)};
+  if(state.wallN)state.wallN={grid:resizeWallGrid(state.wallN.grid,cols,rows)};
+}
+function resizeFence(W,rows){
+  const old=state.fence.grid,oR=old.length,oC=old[0].length,cols=W/2,g=[];
+  for(let r=0;r<rows;r++){const src=old[Math.min(oR-1,Math.floor((r+0.5)*oR/rows))];g.push(Array.from({length:cols},(_,c)=>src[c%oC]))}
+  state.fence={unitW:W,grid:g};
+}
+function evenW(v){let n=Math.round(Number(v)/2)*2;if(!isFinite(n))n=60;return Math.min(200,Math.max(10,n))}
+$('#inpWallW').addEventListener('change',e=>{const W=evenW(e.target.value);if(W!==Number(e.target.value))toast('單元寬度要是柱距 2 m 的倍數，已改為 '+W+' m');if(W!==state.wall.unitW){pushUndo();resizeWall(W,state.wall.heightM);afterChange()}else renderSpec()});
+$('#selWallH').addEventListener('change',e=>{pushUndo();resizeWall(state.wall.unitW,Number(e.target.value));afterChange()});
+$('#inpFenceW').addEventListener('change',e=>{const W=evenW(e.target.value);if(W!==Number(e.target.value))toast('單元寬度要是 2 m 的倍數，已改為 '+W+' m');if(W!==state.fence.unitW){pushUndo();resizeFence(W,state.fence.grid.length);afterChange()}else renderSpec()});
+const selFR=$('#selFenceRows');FENCE_ROWS.forEach(n=>{const o=document.createElement('option');o.value=String(n);o.textContent=n===1?'1 段（整片單色）':n+' 段（每段 '+ +(FENCE_H/n).toFixed(2)+' m）';selFR.append(o)});
+selFR.addEventListener('change',e=>{pushUndo();resizeFence(state.fence.unitW,Number(e.target.value));afterChange()});
+
+['wall','wallN','fence'].forEach(k=>$('#tab-'+k).addEventListener('click',()=>{active=k;hover=null;renderEditor()}));
+seg('segTool','tool',[['brush','筆刷 B'],['row','整排 R'],['col','整欄 C'],['pick','吸色 I']],()=>tool,v=>{tool=v;drawGrid()});
+$('#btnMirror').addEventListener('click',()=>{if(locked()){toast(lockedMsg);return}pushUndo();gridOf().forEach(r=>r.reverse());afterChange();toast('已左右鏡像，原本的行車前方端換到右邊')});
+$('#selPreset').addEventListener('change',e=>{const k=e.target.value;if(!PRESETS[k])return;pushUndo();Object.assign(state,makePreset(k));e.target.value='';afterChange();toast('已載入'+PRESETS[k].label+'提案，按復原可回到先前的設計')});
+$('#btnFillAll').addEventListener('click',()=>{if(locked()){toast(lockedMsg);return}pushUndo();gridOf().forEach(r=>r.fill(state.current));afterChange()});
+
+/* ---------- 色票 ---------- */
+function usage(){
+  const m=new Map();const get=h=>{if(!m.has(h))m.set(h,{s:0,n:0,fence:0});return m.get(h)};
+  state.wall.grid.forEach(r=>r.forEach(h=>get(h).s++));
+  gridOf('wallN').forEach(r=>r.forEach(h=>get(h).n++));
+  state.fence.grid.forEach(r=>r.forEach(h=>get(h).fence++));return m;
+}
+function renderPalette(){
+  const t=$('#palTable'),rows=usageRows();t.innerHTML='';
+  const head=document.createElement('thead'),hr=document.createElement('tr');
+  ['','色號','色碼','名稱','Pantone','南下 片','北上 片'+(state.wallN?'':'（沿用）'),'兩向 片／公里','圍籬 m²',''].forEach((h,k)=>{const th=document.createElement('th');th.textContent=h;if(k>=5&&k<=8)th.style.textAlign='right';hr.append(th)});
+  head.append(hr);t.append(head);
+  const tb=document.createElement('tbody');
+  rows.forEach((r,i)=>{
+    const p=r.p,used=r.s+(state.wallN?r.n:0)+r.fence;
+    const tr=document.createElement('tr');if(p.hex===state.current)tr.className='sel';
+    const td=()=>{const c=document.createElement('td');tr.append(c);return c};
+    const sw=document.createElement('button');sw.className='swatch';sw.style.background=p.hex;sw.title='選用這個顏色';sw.setAttribute('aria-label','選用 '+(p.name||p.hex));
+    sw.addEventListener('click',()=>{state.current=p.hex;renderPalette();renderCurrent();persist()});
+    td().append(sw);
+    const code=td();code.className='code';code.textContent=r.code;
+    const hex=document.createElement('input');hex.className='hex';hex.value=p.hex;hex.setAttribute('aria-label','色碼');
+    hex.addEventListener('change',()=>{
+      const v=normHex(hex.value);if(!v){toast('色碼格式要是 #RRGGBB，例如 #2F6E8E');hex.value=p.hex;return}
+      if(v===p.hex)return;
+      if(state.palette.some(q=>q!==p&&q.hex===v)){toast('色票裡已經有 '+v+'，請改用那一格');hex.value=p.hex;return}
+      pushUndo();const old=p.hex;allGrids(state).forEach(g=>g.forEach(row=>{for(let c=0;c<row.length;c++)if(row[c]===old)row[c]=v}));
+      if(state.current===old)state.current=v;p.hex=v;afterChange();
+    });
+    td().append(hex);
+    const name=document.createElement('input');name.value=p.name;name.placeholder='名稱';name.setAttribute('aria-label','名稱');
+    name.addEventListener('change',()=>{p.name=name.value.trim();renderCurrent();persist()});
+    td().append(name);
+    const pms=document.createElement('input');pms.value=p.pantone;pms.placeholder='Pantone 色號（待填）';pms.setAttribute('aria-label','Pantone 色號');
+    pms.addEventListener('change',()=>{p.pantone=pms.value.trim();persist()});
+    td().append(pms);
+    [r.s,r.n,r.km,r.fence].forEach(v=>{const c=td();c.className='num';c.textContent=String(v)});
+    const del=document.createElement('button');del.className='del';del.textContent='×';del.disabled=used>0||state.palette.length<2;
+    del.title=used?'使用中，先把格子改成其他顏色':'刪除';del.setAttribute('aria-label','刪除 '+(p.name||p.hex));
+    del.addEventListener('click',()=>{pushUndo();state.palette.splice(i,1);if(state.current===p.hex)state.current=state.palette[0].hex;afterChange()});
+    td().append(del);
+    tb.append(tr);
+  });
+  t.append(tb);
+}
+$('#btnAddColor').addEventListener('click',()=>{
+  const v=normHex($('#newColor').value);if(!v)return;
+  if(state.palette.some(p=>p.hex===v)){state.current=v;renderPalette();renderCurrent();toast('色票裡已有 '+v+'，已選取');return}
+  pushUndo();state.palette.push({hex:v,name:'新顏色',pantone:''});state.current=v;afterChange();
+});
+function usageRows(){
+  const u=usage(),W=state.wall.unitW,rm=fenceRowM();
+  return state.palette.map((p,i)=>{const n=u.get(p.hex)||{s:0,n:0,fence:0};
+    return{code:'C'+String(i+1).padStart(2,'0'),p,s:n.s,n:n.n,km:Math.round((n.s+n.n)*1000/W),fence:+(n.fence*2*rm).toFixed(2)}});
+}
+function mdTable(){
+  const W=state.wall.unitW,F=state.fence.unitW,nTxt=state.wallN?'北上':'北上（沿用南下）';
+  const lines=[`| 色號 | 名稱 | 色碼 | Pantone | 南下隔音牆（片／${W} m 單元） | ${nTxt}（片／${W} m 單元） | 兩向合計（片／公里） | 施工圍籬（m²／${F} m 單元） |`,'|---|---|---|---|---|---|---|---|'];
+  usageRows().forEach(r=>lines.push(`| ${r.code} | ${r.p.name||'（未命名）'} | ${r.p.hex} | ${r.p.pantone||'（待填）'} | ${r.s} | ${r.n} | ${r.km} | ${r.fence} |`));
+  return lines.join('\n');
+}
+$('#btnCopyMd').addEventListener('click',()=>{
+  const md=mdTable();const fb=$('#mdFallback');
+  const done=()=>toast('已複製色票表，貼到 方案說明.md');
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(md).then(done).catch(()=>{fb.hidden=false;fb.value=md;fb.select();toast('無法直接複製，請手動選取下方文字')})}
+  else{fb.hidden=false;fb.value=md;fb.select();toast('請手動複製下方文字')}
+});
+$('#btnSaveMd').addEventListener('click',()=>offerFile('色票表.md',new Blob(['## 色票表\n\n'+mdTable()+'\n'],{type:'text/markdown'})));
+
+/* ---------- 匯出／匯入 ---------- */
+$('#btnPng').addEventListener('click',()=>{
+  if(locked()){toast('北上沿用南下，不需要另外匯出');return}
+  const k=active,g=gridOf(k),{rows,cols}=dims(k),s=Number($('#selScale').value)||1;
+  const W=cols*100*s,H=(isWall(k)?rows*25:120)*s,rh=H/rows;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;const x=cv.getContext('2d');
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){x.fillStyle=g[r][c];x.fillRect(c*100*s,Math.round(r*rh),100*s,Math.round((r+1)*rh)-Math.round(r*rh))}
+  cv.toBlob(b=>{if(b)offerFile(PNG_NAME[k],b)},'image/png');
+});
+$('#filePng').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;
+  const img=new Image();const url=URL.createObjectURL(f);
+  img.onload=()=>{
+    URL.revokeObjectURL(url);
+    const k=active,{rows,cols}=dims(k),want=isWall(k)?(cols*100)/(rows*25):(cols*100)/120,got=img.width/img.height;
+    if(Math.abs(got-want)/want>0.02){toast(`長寬比不符：這張是 ${img.width}×${img.height}，目前要 ${isWall(k)?cols*100+'×'+rows*25:cols*100+'×120'}（或等比例放大）`);return}
+    const cv=document.createElement('canvas');cv.width=img.width;cv.height=img.height;const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0);
+    pushUndo();
+    if(k==='wallN'&&!state.wallN)state.wallN={grid:state.wall.grid.map(r=>r.slice())};
+    const g=gridOf(k);
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      const px=Math.floor((c+0.5)*img.width/cols),py=Math.floor((r+0.5)*img.height/rows),d=x.getImageData(px,py,1,1).data;
+      g[r][c]='#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('').toUpperCase();
+    }
+    ensurePalette(state);afterChange();toast('已依每格中心取色');
+  };
+  img.onerror=()=>{URL.revokeObjectURL(url);toast('讀不到這張圖，請用 PNG 或 JPG')};
+  img.src=url;
+});
+$('#btnSaveJson').addEventListener('click',()=>offerFile('色塊方案.json',new Blob([JSON.stringify(state,null,1)],{type:'application/json'})));
+$('#fileJson').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;
+  f.text().then(t=>{const s=sanitize(JSON.parse(t));if(!s)throw new Error('bad');pushUndo();Object.assign(state,s);afterChange();syncSimUI();applyEnv();toast('已開啟 '+f.name)})
+   .catch(()=>toast('這個檔案不是本工具存的專案'));
+});
+$('#btnReset').addEventListener('click',()=>{pushUndo();const s=makeSample();state.palette=s.palette;state.current=s.current;state.wall=s.wall;state.wallN=null;state.fence=s.fence;afterChange();toast('已載入範例，可按「復原」回到原本的設計')});
+$('#btnUndo').addEventListener('click',undo);$('#btnRedo').addEventListener('click',redo);
+document.addEventListener('keydown',e=>{
+  const tag=(e.target&&e.target.tagName)||'';if(/INPUT|SELECT|TEXTAREA/.test(tag))return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  const map={b:'brush',r:'row',c:'col',i:'pick'};const t=map[e.key.toLowerCase()];
+  if(t){tool=t;setSeg('tool',t);drawGrid()}
+  if(e.key.toLowerCase()==='p'){togglePlay()}
+});
+
+function renderEditor(){renderSpec();drawGrid();drawTile();renderCurrent()}
+function afterChange(){texDirty=true;renderEditor();renderPalette();renderFacts();persist();syncUndo()}
+
+/* ---------- 3D 行車模擬 ---------- */
+const sim=state.sim;
+let renderer=null;
+try{renderer=new THREE.WebGLRenderer({canvas:$('#sim3d'),antialias:true})}catch(e){renderer=null}
+let texDirty=true,playing=!window.matchMedia('(prefers-reduced-motion: reduce)').matches,v=0,s=0,yawDeg=sim.yaw,pitchDeg=0;
+let applyEnv=()=>{},syncSimUI=()=>{};
+
+if(!renderer){
+  $('#viewport').innerHTML='<p class="err">這個瀏覽器無法開啟 WebGL，3D 駕駛模擬無法顯示。色塊編輯與匯出仍可使用。</p>';
+}else{
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  const maxAniso=renderer.capabilities.getMaxAnisotropy();
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(60,16/9,0.1,3000);camera.rotation.order='YXZ';
+  const lin=h=>new THREE.Color(h).convertSRGBToLinear();
+  const lam=h=>new THREE.MeshLambertMaterial({color:lin(h)});
+  const hemi=new THREE.HemisphereLight(0xffffff,0x444444,1);scene.add(hemi);
+  const sun=new THREE.DirectionalLight(0xfff3e0,0.5);scene.add(sun,sun.target);
+  function inst(geo,mat,count,fn){const m=new THREE.InstancedMesh(geo,mat,count),o=new THREE.Object3D();for(let i=0;i<count;i++){fn(o,i);o.updateMatrix();m.setMatrixAt(i,o.matrix)}m.instanceMatrix.needsUpdate=true;return m}
+  const flat=(w,l,mat,x,y)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,l),mat);m.rotation.x=-Math.PI/2;m.position.set(x,y,0);return m};
+
+  const grassMat=lam('#6E7B55'),roadMat=lam('#64686A'),lineMat=lam('#E6E6DE'),concMat=lam('#B8B7AF'),dirtMat=lam('#8C7B62'),postMat=lam('#1F6B45');
+  const colMat=lam(sim.column);
+  const lampMat=new THREE.MeshBasicMaterial({color:lin('#FFB020')});
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(6000,6000),grassMat);ground.rotation.x=-Math.PI/2;ground.position.y=-0.03;ground.frustumCulled=false;scene.add(ground);
+  const median=new THREE.Mesh(new THREE.BoxGeometry(0.6,BARRIER,LEN),concMat);median.position.set(MIRROR_X/2,BARRIER/2,0);median.frustumCulled=false;scene.add(median);
+  const dashGeo=new THREE.BoxGeometry(0.15,0.02,4);
+
+  /* 一側的車道、護欄、圍籬、隔音牆。對向用 scale.x = -1 鏡射到中央分隔帶另一邊 */
+  function buildSide(opp){
+    const g=new THREE.Group();if(opp){g.scale.x=-1;g.position.x=MIRROR_X}scene.add(g);
+    const A=(m,parent)=>{m.frustumCulled=false;(parent||g).add(m);return m};
+    const o={opp,g};
+    o.road=A(flat(15.25,LEN,roadMat,-7.625,0));
+    o.edgeR=A(flat(0.15,LEN,lineMat,-3.0,0.01));o.edgeL=A(flat(0.15,LEN,lineMat,-14.25,0.01));
+    o.dashes=A(inst(dashGeo,lineMat,Math.floor(LEN/10)*2,(t,i)=>{t.position.set(i%2?-10.5:-6.75,0.01,-LEN/2+(i>>1)*10)}));
+    o.barrier=A(new THREE.Mesh(new THREE.BoxGeometry(0.5,BARRIER,LEN),concMat));o.barrier.position.set(0.25,BARRIER/2,0);
+    o.curb=A(new THREE.Mesh(new THREE.BoxGeometry(0.4,CURB,LEN),concMat));o.curb.position.set(0.2,CURB/2,0);
+    o.work=A(flat(WORK_X,LEN,dirtMat,0.4+WORK_X/2,0.005));
+    o.posts=A(inst(new THREE.BoxGeometry(0.04,0.42,0.36),postMat,Math.floor(LEN/100),(t,i)=>{t.position.set(0,0,-LEN/2+i*100)}));
+    o.wallMat=new THREE.MeshLambertMaterial({map:null});o.fenceMat=new THREE.MeshLambertMaterial({map:null});
+    o.wallGroup=new THREE.Group();g.add(o.wallGroup);
+    o.wallBarrier=A(new THREE.Mesh(new THREE.BoxGeometry(0.5,BARRIER,LEN),concMat),o.wallGroup);o.wallBarrier.position.set(0.25,BARRIER/2,0);
+    o.wall=A(new THREE.Mesh(new THREE.PlaneGeometry(LEN,1),o.wallMat),o.wallGroup);o.wall.rotation.y=-Math.PI/2;o.wall.position.x=0.3;
+    o.columns=A(inst(new THREE.BoxGeometry(0.2,1,0.2),colMat,LEN/2,(t,i)=>{t.position.set(0,0,-LEN/2+i*2)}),o.wallGroup);o.columns.position.x=0.2;
+    o.cap=A(new THREE.Mesh(new THREE.BoxGeometry(0.22,0.2,LEN),colMat),o.wallGroup);o.cap.position.x=0.3;
+    o.fence=A(new THREE.Mesh(new THREE.PlaneGeometry(LEN,1),o.fenceMat));o.fence.rotation.y=-Math.PI/2;o.fence.scale.y=FENCE_H;o.fence.position.set(0.2,CURB+FENCE_H/2,0);
+    o.lamps=A(inst(new THREE.BoxGeometry(0.14,0.14,0.14),lampMat,LEN/2,(t,i)=>{t.position.set(0,0,-LEN/2+i*2)}));o.lamps.position.set(0.2,CURB+FENCE_H+0.08,0);
+    return o;
+  }
+  const sides=[buildSide(false),buildSide(true)];
+
+  const car=new THREE.Group();scene.add(car);const heads=[];
+  [-0.7,0.7].forEach(dx=>{const L=new THREE.SpotLight(0xfff2dc,0,150,0.42,0.6,1);L.position.set(dx,0.7,0);L.target.position.set(dx*2+1.4,0,-45);car.add(L,L.target);heads.push(L)});
+
+  const RAIN=1400,rainPos=new Float32Array(RAIN*6);
+  for(let i=0;i<RAIN;i++){const x=(Math.random()-0.5)*50,y=Math.random()*14,z=-Math.random()*90+10;rainPos.set([x,y,z,x+0.05,y+0.55,z+0.08],i*6)}
+  const rainGeo=new THREE.BufferGeometry();rainGeo.setAttribute('position',new THREE.BufferAttribute(rainPos,3));
+  const rain=new THREE.LineSegments(rainGeo,new THREE.LineBasicMaterial({color:0xC8D2D8,transparent:true,opacity:0.35}));rain.frustumCulled=false;scene.add(rain);
+
+  function makeTex(cv){const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.anisotropy=maxAniso;return t}
+  function wallCanvas(wg){
+    const wr=wg.length,wc=wg[0].length,CW=32,CH=8;
+    const a=document.createElement('canvas');a.width=wc*CW;a.height=wr*CH;const x=a.getContext('2d');
+    for(let r=0;r<wr;r++)for(let c=0;c<wc;c++){x.fillStyle=wg[r][c];x.fillRect(c*CW,r*CH,CW,CH)}
+    if(sim.seams){x.fillStyle='rgba(0,0,0,.22)';for(let r=1;r<wr;r++)x.fillRect(0,r*CH,a.width,1)}
+    return a;
+  }
+  function fenceCanvas(){
+    const fg=state.fence.grid,fr=fg.length,fc=fg[0].length,FW=40,FH=48,rh=FH/fr;
+    const b=document.createElement('canvas');b.width=fc*FW;b.height=FH;const y=b.getContext('2d');
+    for(let r=0;r<fr;r++)for(let c=0;c<fc;c++){y.fillStyle=fg[r][c];y.fillRect(c*FW,Math.round(r*rh),FW,Math.round((r+1)*rh)-Math.round(r*rh))}
+    y.fillStyle='rgba(0,0,0,.07)';for(let px=0;px<b.width;px+=4)y.fillRect(px,0,2,FH);
+    if(sim.seams){y.fillStyle='rgba(0,0,0,.28)';for(let c=0;c<fc;c++)y.fillRect(c*FW,0,1,FH)}
+    return b;
+  }
+  /* 本側＝你行駛方向的牆；對向＝另一方向的牆 */
+  function rebuildTextures(){
+    const cvS=wallCanvas(state.wall.grid),cvN=state.wallN?wallCanvas(state.wallN.grid):cvS,cvF=fenceCanvas();
+    const own=sim.dir==='S'?cvS:cvN,other=sim.dir==='S'?cvN:cvS,H=state.wall.heightM;
+    sides.forEach(o=>{
+      if(o.wallMat.map)o.wallMat.map.dispose();if(o.fenceMat.map)o.fenceMat.map.dispose();
+      o.wallMat.map=makeTex(o.opp?other:own);o.fenceMat.map=makeTex(cvF);o.wallMat.needsUpdate=o.fenceMat.needsUpdate=true;
+      o.wall.scale.y=H;o.wall.position.y=BARRIER+H/2;o.columns.scale.y=H;o.columns.position.y=BARRIER+H/2;o.cap.position.y=BARRIER+H+0.1;
+    });
+    texDirty=false;
+  }
+
+  let sunDir=new THREE.Vector3(0,1,0);
+  applyEnv=function(){
+    const W=sim.weather,built=sim.scene==='built';
+    const sky={sun:'#BFD5E6',rain:'#8E979C',night:'#0A0F16'}[W];
+    scene.background=new THREE.Color(sky);
+    scene.fog=new THREE.Fog(sky,W==='sun'?250:W==='rain'?25:45,W==='sun'?1500:W==='rain'?340:520);
+    hemi.color.set(W==='night'?'#40507A':W==='rain'?'#C9CFD3':'#E4EEF4');hemi.groundColor.set(W==='night'?'#121212':'#5E5B4E');
+    hemi.intensity=W==='sun'?1.0:W==='rain'?0.95:0.24;
+    sun.intensity=W==='sun'?0.55:0;
+    heads.forEach(h=>h.intensity=W==='night'?4:W==='rain'?0.5:0);
+    roadMat.color.copy(lin(W==='rain'?'#3E4245':'#64686A'));
+    rain.visible=W==='rain';
+    const east=new THREE.Vector3(sim.dir==='S'?-1:1,0,0),north=new THREE.Vector3(0,0,sim.dir==='S'?1:-1);
+    const horiz=sim.sun==='am'?east:sim.sun==='pm'?east.clone().negate():north.clone().negate();
+    const el=THREE.MathUtils.degToRad(sim.sun==='noon'?55:28);
+    sunDir=horiz.clone().multiplyScalar(Math.cos(el)).add(new THREE.Vector3(0,Math.sin(el),0)).normalize();
+    sides.forEach(o=>{
+      o.barrier.visible=built;o.curb.visible=o.fence.visible=o.lamps.visible=o.work.visible=!built;
+      o.wallGroup.position.x=built?0:WORK_X;
+      o.posts.position.x=built?-0.03:0.15;o.posts.position.y=built?1.25:1.2;
+    });
+    colMat.color.copy(lin(sim.column));texDirty=true;
+    const own=DIR_TXT[sim.dir],other=DIR_TXT[sim.dir==='S'?'N':'S'],sunTxt={am:'上午',noon:'中午',pm:'下午'}[sim.sun];
+    const lit=(sim.dir==='S'&&sim.sun==='am')||(sim.dir==='N'&&sim.sun==='pm');
+    $('#hudScene').textContent=`${own}車道｜右：${own}${built?'隔音牆':'圍籬'}・左遠：${other}${built?'隔音牆':'圍籬'}｜${{sun:'晴天',rain:'雨天',night:'夜晚'}[W]}`+(W==='sun'?`・${sunTxt}${sim.sun==='noon'?'':lit?'右牆迎光':'右牆背光'}`:'');
+    persist();
+  };
+
+  const vp=$('#viewport');
+  function resize(){const w=vp.clientWidth,h=vp.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+  new ResizeObserver(resize).observe(vp);resize();
+
+  let drag=null;
+  vp.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,yaw:yawDeg,pitch:pitchDeg};vp.setPointerCapture(e.pointerId);vp.style.cursor='grabbing'});
+  vp.addEventListener('pointermove',e=>{if(!drag)return;yawDeg=Math.max(-100,Math.min(100,drag.yaw+(e.clientX-drag.x)*0.25));pitchDeg=Math.max(-25,Math.min(30,drag.pitch-(e.clientY-drag.y)*0.2));$('#yaw').value=String(Math.round(Math.max(-80,Math.min(80,yawDeg))));$('#yawOut').textContent=Math.round(yawDeg)+'°'});
+  const endDrag=()=>{if(drag){drag=null;vp.style.cursor='';sim.yaw=Math.round(yawDeg);persist()}};
+  vp.addEventListener('pointerup',endDrag);vp.addEventListener('pointercancel',endDrag);
+  vp.addEventListener('dblclick',()=>{yawDeg=0;pitchDeg=0;sim.yaw=0;$('#yaw').value='0';$('#yawOut').textContent='0°';persist()});
+
+  const fmtKm=m=>{m=Math.round(m);return Math.floor(m/1000)+'K+'+String(m%1000).padStart(3,'0')};
+  /* 本側牆：u = z / W（本側車流往 -z，圖面左邊在前方）；對向牆：u = -z / W（對向車流往 +z） */
+  function updateSide(o,zc){
+    [o.road,o.edgeR,o.edgeL,o.barrier,o.curb,o.work,o.wallBarrier,o.wall,o.cap,o.fence].forEach(m=>m.position.z=zc);
+    o.columns.position.z=o.lamps.position.z=Math.round(zc/2)*2;
+    o.dashes.position.z=Math.round(zc/10)*10;o.posts.position.z=Math.round(zc/100)*100;
+    const sg=o.opp?-1:1,W=state.wall.unitW,F=state.fence.unitW,wt=o.wallMat.map,ft=o.fenceMat.map;
+    if(wt){wt.repeat.x=sg*LEN/W;wt.offset.x=sg*(zc-LEN/2)/W}
+    if(ft){ft.repeat.x=sg*LEN/F;ft.offset.x=sg*(zc-LEN/2)/F}
+  }
+  let last=performance.now(),hudT=0,blink=0;
+  function frame(t){
+    const dt=Math.max(0,Math.min(0.1,(t-last)/1000));last=t;
+    const target=playing?sim.speed/3.6:0;
+    v=v<target?Math.min(target,v+8*dt):Math.max(target,v-10*dt);
+    s+=v*dt;
+    if(texDirty)rebuildTextures();
+    const camZ=-s,zc=camZ-AHEAD,lx=LANE_X[sim.lane];
+    camera.position.set(lx,EYE[sim.eye],camZ);
+    camera.rotation.set(THREE.MathUtils.degToRad(pitchDeg),-THREE.MathUtils.degToRad(yawDeg),0);
+    median.position.z=zc;sides.forEach(o=>updateSide(o,zc));
+    ground.position.set(lx,-0.03,camZ);
+    sun.position.set(lx+sunDir.x*200,sunDir.y*200,camZ+sunDir.z*200);sun.target.position.set(lx,0,camZ);
+    car.position.set(lx,0,camZ);
+    if(rain.visible){const p=rainPos;for(let i=0;i<RAIN;i++){const o=i*6,dy=-16*dt,dz=v*dt;p[o+1]+=dy;p[o+4]+=dy;p[o+2]+=dz;p[o+5]+=dz;if(p[o+1]<0){p[o+1]+=14;p[o+4]+=14}if(p[o+2]>10){p[o+2]-=90;p[o+5]-=90}}rainGeo.attributes.position.needsUpdate=true;rain.position.set(lx,0,camZ)}
+    blink+=dt;lampMat.color.copy(lin(Math.floor(blink*1.6)%2?'#FFB020':'#3A2E14'));
+    renderer.render(scene,camera);
+    if(t-hudT>120){hudT=t;
+      $('#hudSpeed').textContent=String(Math.round(v*3.6));
+      const span=3500,d=((s%span)+span)%span;
+      $('#hudKm').textContent=DIR_TXT[sim.dir]+' '+fmtKm(sim.dir==='S'?93500+d:97000-d);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 模擬控制 ---------- */
+function renderFacts(){
+  const kmh=sim.speed,ms=kmh/3.6,W=state.wall.unitW,F=state.fence.unitW,f=$('#facts');f.innerHTML='';
+  const items=ms>0?[
+    [ms.toFixed(1)+' m/s','每秒前進'],
+    [(W/ms).toFixed(1)+' 秒','通過一個隔音牆單元（'+W+' m）'],
+    [(30/ms).toFixed(1)+'–'+(150/ms).toFixed(1)+' 秒','30–150 m 的節奏（最容易被感受）'],
+    [Math.round(2000/ms)+' ms','一片板（2 m）掠過']
+  ]:[
+    ['停車中','同一段牆、同一片圍籬會停在眼前'],
+    [W+' m','牆單元寬度，可往右轉頭看'],
+    [F+' m','圍籬單元寬度']
+  ];
+  items.forEach(([b,t])=>{const d=document.createElement('div');d.className='fact';const bb=document.createElement('b');bb.textContent=b;const sp=document.createElement('span');sp.textContent=t;d.append(bb,sp);f.append(d)});
+}
+function setSpeed(kmh){sim.speed=Math.max(0,Math.min(130,Math.round(kmh)));$('#spd').value=String(sim.speed);$('#spdOut').textContent=sim.speed+' km/h';renderFacts();persist()}
+$('#spd').addEventListener('input',e=>setSpeed(Number(e.target.value)));
+document.querySelectorAll('#presets [data-v]').forEach(b=>b.addEventListener('click',()=>{setSpeed(Number(b.dataset.v));if(!playing)togglePlay()}));
+function togglePlay(){playing=!playing;$('#btnPlay').textContent=playing?'暫停':'開車'}
+$('#btnPlay').addEventListener('click',togglePlay);
+$('#yaw').addEventListener('input',e=>{yawDeg=Number(e.target.value);sim.yaw=yawDeg;$('#yawOut').textContent=yawDeg+'°';persist()});
+$('#colColor').addEventListener('input',e=>{sim.column=normHex(e.target.value)||sim.column;$('#colHex').textContent=sim.column;applyEnv()});
+$('#chkSeams').addEventListener('change',e=>{sim.seams=e.target.checked;texDirty=true;persist()});
+syncSimUI=function(){
+  Object.assign(sim,state.sim);
+  seg('segScene','scene',[['built','完工後'],['construction','施工期間']],()=>sim.scene,v=>{sim.scene=v;applyEnv()});
+  seg('segDir','dir',[['S','南下'],['N','北上']],()=>sim.dir,v=>{sim.dir=v;applyEnv();toast(v==='S'?'換到南下車道：右側是南下的牆，左側遠處是北上的牆':'換到北上車道：右側是北上的牆，左側遠處是南下的牆')});
+  seg('segWeather','weather',[['sun','晴天'],['rain','雨天'],['night','夜晚']],()=>sim.weather,v=>{sim.weather=v;applyEnv()});
+  seg('segSun','sun',[['am','上午'],['noon','中午'],['pm','下午']],()=>sim.sun,v=>{sim.sun=v;applyEnv()});
+  seg('segLane','lane',[[0,'外側'],[1,'中線'],[2,'內側']],()=>sim.lane,v=>{sim.lane=Number(v);persist()});
+  seg('segEye','eye',[['car','小客車 1.2 m'],['truck','大貨車 2.4 m']],()=>sim.eye,v=>{sim.eye=v;persist()});
+  $('#yaw').value=String(sim.yaw);yawDeg=sim.yaw;$('#yawOut').textContent=sim.yaw+'°';
+  $('#colColor').value=sim.column;$('#colHex').textContent=sim.column;$('#chkSeams').checked=!!sim.seams;
+  setSpeed(sim.speed);$('#btnPlay').textContent=playing?'暫停':'開車';
+};
+/* sanitize() 換掉 state.sim 物件時，讓 sim 指向同一份 */
+Object.defineProperty(state,'sim',{get(){return sim},set(o){Object.assign(sim,o)},enumerable:true,configurable:true});
+
+syncSimUI();applyEnv();
+afterChange();undoStack.length=0;syncUndo();
+
+/* ---------- 分享連結：色票與三張排列寫進網址 #d= ---------- */
+const PUBLIC_URL='https://chunmingwei.github.io/highway-color-sim/';// 公開網址版的位址；在 claude.ai 內開啟時，分享連結改指向這裡
+const b64u={
+  enc:u8=>{let s='';u8.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')},
+  dec:t=>{const s=atob(t.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(s,ch=>ch.charCodeAt(0))}
+};
+async function pipe(u8,Stream){return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new Stream('deflate-raw'))).arrayBuffer())}
+async function encodeDesign(){
+  const idx=new Map(state.palette.map((p,i)=>[p.hex,i])),gi=g=>g.map(r=>r.map(h=>idx.get(h)));
+  const o={v:1,p:state.palette.map(p=>[p.hex.slice(1),p.name,p.pantone]),c:idx.get(state.current)||0,
+    w:gi(state.wall.grid),n:state.wallN?gi(state.wallN.grid):null,f:gi(state.fence.grid)};
+  const raw=new TextEncoder().encode(JSON.stringify(o));
+  if(window.CompressionStream){try{return 'z'+b64u.enc(await pipe(raw,CompressionStream))}catch(e){}}
+  return 'j'+b64u.enc(raw);
+}
+async function decodeDesign(t){
+  let raw=b64u.dec(t.slice(1));
+  if(t[0]==='z')raw=await pipe(raw,DecompressionStream);
+  const o=JSON.parse(new TextDecoder().decode(raw));
+  const pal=o.p.map(([h,name,pantone])=>({hex:'#'+h,name,pantone})),gh=g=>g.map(r=>r.map(i=>pal[i]&&pal[i].hex));
+  return sanitize({palette:pal,current:pal[o.c]&&pal[o.c].hex,wall:{grid:gh(o.w)},wallN:o.n?{grid:gh(o.n)}:null,fence:{grid:gh(o.f)},sim:{}});
+}
+function shareBase(){
+  let inFrame=true;try{inFrame=window.top!==window}catch(e){}
+  if(!inFrame&&/^(https?|file):$/.test(location.protocol))return location.href.split('#')[0];
+  return PUBLIC_URL;
+}
+$('#btnShare').addEventListener('click',async()=>{
+  const base=shareBase();
+  if(!base){toast('這個版本沒有公開網址，請改用公開網址版產生分享連結');return}
+  const link=base+'#d='+await encodeDesign();const fb=$('#mdFallback');
+  const manual=()=>{fb.hidden=false;fb.value=link;fb.select();toast('請手動複製下方連結')};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(()=>toast('已複製分享連結：對方打開就會看到這組色塊排列與色票')).catch(manual);
+  else manual();
+});
+(async()=>{
+  const m=/#d=([zj][A-Za-z0-9_-]+)/.exec(location.hash);if(!m)return;
+  let s=null;try{s=await decodeDesign(m[1])}catch(e){s=null}
+  try{history.replaceState(null,'',location.href.split('#')[0])}catch(e){}
+  if(!s){toast('分享連結內容不完整，沒有載入');return}
+  pushUndo();
+  Object.assign(state,{palette:s.palette,current:s.current,wall:s.wall,wallN:s.wallN,fence:s.fence});
+  afterChange();toast('已載入分享的設計；你原本的設計可按復原找回');
+})();
+let rT=0;window.addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>{drawGrid();drawTile()},120)});
+try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{drawGrid();drawTile()})}catch(e){}
+})();
+</script>
+
+</body></html>
