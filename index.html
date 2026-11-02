@@ -150,6 +150,18 @@ input[type=range]{width:100%;accent-color:var(--accent)}
             <option value="d4">D4 淺山轉田園 104k–105k8｜山林 6：聚落 4</option>
             <option value="d5">D5 田園聚落・遠山 105k8–110k｜聚落＋遠山</option>
           </optgroup>
+          <optgroup label="圖騰花紋（低彩紅黃藍紫延伸色，不在韓國 30 色內）">
+            <option value="e1">E1 櫻花｜粉紅＋米黃</option>
+            <option value="e2">E2 金穗花｜暖黃＋橄欖</option>
+            <option value="e3">E3 波紋｜灰藍三階＋白浪</option>
+            <option value="e4">E4 紫藤垂串｜灰紫＋橄欖藤</option>
+            <option value="e5">E5 菱形編織｜磚紅＋藏青＋米黃</option>
+            <option value="e6">E6 回紋｜藕紫＋紅褐</option>
+            <option value="e7">E7 晨霞雲紋｜灰藍＋白雲＋粉紫霞</option>
+            <option value="e8">E8 山茶花｜玫瑰＋米黃＋綠葉</option>
+            <option value="e9">E9 四色斜帶｜紅・黃・藍・紫</option>
+            <option value="e10">E10 蝴蝶｜灰藍天＋紫翅＋青灰草</option>
+          </optgroup>
         </select></label>
         <span class="note">依韓國道路公社 2018 色彩指南：調和型 3 色、上淺下深、60／30／10</span>
       </div>
@@ -294,7 +306,13 @@ const EX={
   '04':['#646054','5Y 4/1','S 7005-G80Y'],'06':['#BCAB96','10YR 7/2','S 3010-Y30R'],'07':['#A2917D','10YR 6/2','S 4010-Y30R'],
   '08':['#877764','10YR 5/2','S 5010-Y30R'],'11':['#9C9379','5Y 6/2','S 4010-G90Y'],'12':['#817961','5Y 5/2','S 5010-G90Y'],
   '13':['#636149','10Y 4/2','S 7010-G70Y'],'14':['#4A4934','10Y 3/2','S 7020-G70Y'],'16':['#4D6560','2.5BG 4/2','S 6010-B70G'],'18':['#667E82','2.5B 5/2','S 5020-B30G'],'20':['#394A55','10B 3/2','S 7020-B'],
-  '21':['#E3E3E3','N9','S 1000-N']
+  '21':['#E3E3E3','N9','S 1000-N'],
+  // 延伸色：不在韓國 30 色內，依芬蘭論文彩度 2–4（低彩）補足紅黃藍紫；Hex 與 NCS 為近似換算。
+  R3:['#C4AFA8','7.5R 7/2','≈S 2010-Y80R'],R1:['#AD8A86','5R 6/3','≈S 3020-Y90R'],R2:['#74605C','5R 4/2','≈S 6010-Y90R'],R4:['#9A6F60','10R 5/4','≈S 4030-Y70R'],
+  Y1:['#D6CAA6','2.5Y 8/3','≈S 1515-Y10R'],Y2:['#C3AE7F','2.5Y 7/4','≈S 2030-Y10R'],Y3:['#8E785D','10YR 5/3','≈S 5020-Y30R'],
+  B1:['#A5B2BB','10B 7/2','≈S 2010-R90B'],B2:['#6D7B92','5PB 5/3','≈S 4020-R80B'],B3:['#414C62','5PB 3/3','≈S 6020-R80B'],B4:['#87999A','10BG 6/2','≈S 3010-B50G'],
+  P1:['#B5AAB7','5P 7/2','≈S 2010-R50B'],P3:['#9B889C','7.5P 6/3','≈S 3020-R40B'],P2:['#7E6C85','5P 5/3','≈S 4020-R50B'],P4:['#4C4659','2.5P 3/2','≈S 6020-R60B'],
+  M1:['#8F6E76','10RP 5/3','≈S 4020-R20B']
 };
 // 牆：上主調、下輔助，點綴放最底排長色帶；每段 6 欄以上，垂直交界間距 ≥10 m。格數固定 108／54／18。
 const PRESETS={
@@ -311,13 +329,36 @@ const PRESETS={
   d4:{label:'D4 淺山轉田園',wall:['06','12','08'],fence:['11','14',null],
     far:[0,0,0,0,0,0,0,0,0,0,0,0,2,3,3,4,4,3,3,4,5,5,4,3,3,4,4,3,2,2],near:[1,2,2,1,1,2,3,2,1,1,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},
   d5:{label:'D5 田園聚落・遠山',wall:['06','07','08'],fence:['02','04','21'],
-    far:[2,2,2,2,3,3,3,3,4,4,4,3,3,3,2,2,2,2,2,2,2,3,3,3,2,2,2,2,2,2],near:[0,0,1,2,1,0,0,0,0,1,2,2,0,0,0,0,0,1,2,1,0,0,0,0,1,2,2,1,0,0]}
+    far:[2,2,2,2,3,3,3,3,4,4,4,3,3,3,2,2,2,2,2,2,2,3,3,3,2,2,2,2,2,2],near:[0,0,1,2,1,0,0,0,0,1,2,2,0,0,0,0,0,1,2,1,0,0,0,0,1,2,2,1,0,0]},
+  // 圖騰花紋：pat 為 6 排×30 欄（由上往下），字元經 key 對到色號；'.' 為底色。每組 4 色。
+  e1:{label:'E1 櫻花・粉紅',key:{'.':'R3',a:'R1',b:'Y1',c:'R2'},fence:['R3','R2','21'],
+    pat:['...a.............a............','..aba.....a.....aba.....a.....','...a.....aba.....a.....aba....','...c......a......c......a.....','...c......c......c......c.....','cccccccccccccccccccccccccccccc']},
+  e2:{label:'E2 金穗花・暖黃',key:{'.':'Y1',a:'Y2',b:'Y3',c:'13'},fence:['Y1','13',null],
+    pat:['....a.........a.........a.....','...aba.......aba.......aba....','..abbba.....abbba.....abbba...','...aba.......aba.......aba....','....a.........a.........a.....','...ccc.......ccc.......ccc....']},
+  e3:{label:'E3 波紋・灰藍',key:{'.':'B1',a:'B2',b:'B3',c:'21'},fence:['B1','B3','21'],
+    pat:['..............................','.........ccccc..........ccccc.','cc.....ccaaaaaccc.....ccaaaaac','aacccccaaaaaaaaaacccccaaaaaaaa','bbbbbbbbbbaaaabbbbbbbbbbbaaaab','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb']},
+  e4:{label:'E4 紫藤・灰紫',key:{'.':'P1',a:'P2',b:'P3',c:'13'},fence:['P1','P4',null],
+    pat:['cccccccccccccccccccccccccccccc','.aaa..aaa.aaaaa.aaa..aaa..aaa.','.aaa...a...aaa...a...aaa...a..','..b....b...aaa...b....b....b..','..b.........b.........b.......','............b.................']},
+  e5:{label:'E5 菱形編織・磚紅藏青',key:{'.':'Y1',a:'R4',b:'B3',c:'Y2'},fence:['Y1','B3',null],
+    pat:['..............................','..a.....a.....a.....a.....a...','.aba...aba...aba...aba...aba..','abcbaaabcbaaabcbaaabcbaaabcbaa','.aba...aba...aba...aba...aba..','..a.....a.....a.....a.....a...']},
+  e6:{label:'E6 回紋・藕紫褐',key:{'.':'06',a:'M1',b:'R2',c:'Y2'},fence:['06','R2',null],
+    pat:['aaaaa.aaaaa.aaaaa.aaaaa.aaaaa.','a...a.a...a.a...a.a...a.a...a.','a.c.a.a.c.a.a.c.a.a.c.a.a.c.a.','a.aaa.a.aaa.a.aaa.a.aaa.a.aaa.','a.....a.....a.....a.....a.....','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb']},
+  e7:{label:'E7 晨霞雲紋・藍粉紫',key:{'.':'B1',a:'21',b:'R1',c:'P2'},fence:['B1','P2','21'],
+    pat:['..aaa................aaa......','aaaaaaa...aaaaa....aaaaaaa....','........aaaaaaaaa.............','..............................','bbbbbbbcccbbbbbbbcccbbbbbbbccc','cccccccccccccccccccccccccccccc']},
+  e8:{label:'E8 山茶花・玫瑰綠',key:{'.':'Y1',a:'R1',b:'Y2',c:'16'},fence:['Y1','16',null],
+    pat:['....aaa............aaa........','..aaaaaaa........aaaaaaa......','.aaabbbaaa......aaabbbaaa.....','.aaabbbaaa..c...aaabbbaaa..c..','..aaaaaaa..ccc...aaaaaaa..ccc.','c...aaa...cccccc...aaa...ccccc']},
+  e9:{label:'E9 四色斜帶・紅黃藍紫',key:{'.':'R1',a:'Y2',b:'B2',c:'P2'},fence:['Y1','P4',null],
+    pat:['........aaaaaaaabbbbbbbbcccccc','.......aaaaaaaabbbbbbbbccccccc','......aaaaaaaabbbbbbbbcccccccc','.....aaaaaaaabbbbbbbbcccccccc.','....aaaaaaaabbbbbbbbcccccccc..','...aaaaaaaabbbbbbbbcccccccc...']},
+  e10:{label:'E10 蝴蝶・藍紫黃',key:{'.':'B1',a:'P2',b:'Y2',c:'B4'},fence:['B1','20',null],
+    pat:['.aa.aa...........aa.aa........','..aba....aa.aa....aba...aa.aa.','.aa.aa....aba....aa.aa...aba..','.........aa.aa..........aa.aa.','.c...c...c...c...c...c...c...c','cccccccccccccccccccccccccccccc']}
 };
 function makePreset(key){
   const P=PRESETS[key],hx=k=>EX[k][0];
-  const [main,sub,acc]=P.wall.map(hx);
+  const wallKeys=P.pat?Object.values(P.key):P.wall;
+  const [main,sub,acc]=P.pat?[hx(P.key['.'])]:P.wall.map(hx);
   const wall=Array.from({length:6},()=>Array(30).fill(main));
-  if(P.far){for(let c=0;c<30;c++)for(let rb=0;rb<6;rb++){const r=5-rb;if(rb<P.near[c])wall[r][c]=acc;else if(rb<P.far[c])wall[r][c]=sub}}
+  if(P.pat){for(let r=0;r<6;r++)for(let c=0;c<30;c++)wall[r][c]=hx(P.key[P.pat[r][c]])}
+  else if(P.far){for(let c=0;c<30;c++)for(let rb=0;rb<6;rb++){const r=5-rb;if(rb<P.near[c])wall[r][c]=acc;else if(rb<P.far[c])wall[r][c]=sub}}
   else{
     let c0=0;P.blocks.forEach(([n,h])=>{for(let c=c0;c<c0+n;c++)for(let r=6-h;r<6;r++)wall[r][c]=sub;c0+=n});
     P.accent.forEach(([a,b])=>{for(let c=a;c<b;c++)wall[5][c]=acc});
@@ -325,8 +366,8 @@ function makePreset(key){
   // 圍籬 12 段（每段 0.2 m）：上段淺色 3 段、白色細帶 1 段、下段深色 8 段；淺山段為 11／14 兩色 25／75。
   const [fl,fd,fw]=P.fence;
   const fence=Array.from({length:12},(_,r)=>Array(10).fill(hx(r<3?fl:(fw&&r===3)?fw:fd)));
-  const used=[...P.wall,...P.fence.filter(Boolean)].filter((k,i,a)=>a.indexOf(k)===i);
-  const palette=used.map(k=>({hex:EX[k][0],name:'EX-'+k+' '+EX[k][1]+'｜NCS '+EX[k][2],pantone:''}));
+  const used=[...wallKeys,...P.fence.filter(Boolean)].filter((k,i,a)=>a.indexOf(k)===i);
+  const palette=used.map(k=>({hex:EX[k][0],name:(/^d/.test(k)?'EX-':'延伸 ')+k+' '+EX[k][1]+'｜NCS '+EX[k][2],pantone:''}));
   return{palette,current:main,wall:{unitW:60,heightM:3,grid:wall},wallN:null,fence:{unitW:20,grid:fence}};
 }
 function validGrid(g){return Array.isArray(g)&&g.length>0&&g.every(r=>Array.isArray(r)&&r.length===g[0].length&&r.every(h=>normHex(h)))}
