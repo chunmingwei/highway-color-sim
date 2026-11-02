@@ -162,6 +162,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
             <option value="e9">E9 四色斜帶｜紅・黃・藍・紫</option>
             <option value="e10">E10 蝴蝶｜灰藍天＋紫翅＋青灰草</option>
           </optgroup>
+          <optgroup label="概念圖樣（人文・社會・自然 混搭比例）">
+            <option value="f1">F1 山嵐聚落｜自然 7：人文 3｜雲＋山稜＋斜屋頂</option>
+            <option value="f2">F2 廟埕稻浪｜人文 5：自然 5｜燕尾屋脊＋稻浪</option>
+            <option value="f3">F3 城市網絡｜社會 8：自然 2｜樓群＋貫穿光帶</option>
+            <option value="f4">F4 城河交會｜社會 5：自然 5｜天際線＋雲＋河流</option>
+            <option value="f5">F5 山・鄉・城｜自然・人文・社會 各 1/3｜山稜→燈籠→城市</option>
+          </optgroup>
         </select></label>
         <span class="note">依韓國道路公社 2018 色彩指南：調和型 3 色、上淺下深、60／30／10</span>
       </div>
@@ -350,7 +357,18 @@ const PRESETS={
   e9:{label:'E9 四色斜帶・紅黃藍紫',key:{'.':'R1',a:'Y2',b:'B2',c:'P2'},fence:['Y1','P4',null],
     pat:['........aaaaaaaabbbbbbbbcccccc','.......aaaaaaaabbbbbbbbccccccc','......aaaaaaaabbbbbbbbcccccccc','.....aaaaaaaabbbbbbbbcccccccc.','....aaaaaaaabbbbbbbbcccccccc..','...aaaaaaaabbbbbbbbcccccccc...']},
   e10:{label:'E10 蝴蝶・藍紫黃',key:{'.':'B1',a:'P2',b:'Y2',c:'B4'},fence:['B1','20',null],
-    pat:['.aa.aa...........aa.aa........','..aba....aa.aa....aba...aa.aa.','.aa.aa....aba....aa.aa...aba..','.........aa.aa..........aa.aa.','.c...c...c...c...c...c...c...c','cccccccccccccccccccccccccccccc']}
+    pat:['.aa.aa...........aa.aa........','..aba....aa.aa....aba...aa.aa.','.aa.aa....aba....aa.aa...aba..','.........aa.aa..........aa.aa.','.c...c...c...c...c...c...c...c','cccccccccccccccccccccccccccccc']},
+  // 概念圖樣：仿 E7 的大塊水平層次，人文／社會／自然依比例混搭。
+  f1:{label:'F1 山嵐聚落',key:{'.':'B1',a:'21',b:'B4',c:'R4'},fence:['B1','16',null],
+    pat:['...aaaa...............aaa.....','aaaaaaaaa.........aaaaaaaa....','...........bbb.............bb.','......bbbbbbbbbbb.......bbbbbb','bbbbcbbbbbbbbbbcbbbbbcbbbbbbbb','bbbcccbbbbbbbbcccbbbcccbbbbbbb']},
+  f2:{label:'F2 廟埕稻浪',key:{'.':'Y1',a:'R4',b:'Y2',c:'13'},fence:['Y1','13',null],
+    pat:['..............................','..a.........a.................','..aaaaaaaaaaa.bbbbb...bbbbb...','...aaaaaaaaa.bbbbbbbbbbbbbbbbb','bbb....c....bbbbbbbbbbbbbbbbbb','cccccccccccccccccccccccccccccc']},
+  f3:{label:'F3 城市網絡',key:{'.':'B1',a:'B2',b:'Y2',c:'B3'},fence:['B1','B3','21'],
+    pat:['.........aaaa.................','...aaaa..aaaa.....aaaa........','aaaaaaa..aaaaaaa..aaaa...aaaaa','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','cccccccccccccccccccccccccccccc']},
+  f4:{label:'F4 城河交會',key:{'.':'R3',a:'P2',b:'B1',c:'B3'},fence:['R3','B3',null],
+    pat:['...aaa..aaaa.......bbbb.......','aaaaaa..aaaa....bbbbbbbbbb....','aaaaaaaaaaaaaa.......bbbbbbbb.','aaaaaaaaaaaaaa................','ccbbbbbbbcccccbbbbbbbbcccbbbbb','cccccccbbbbbbbbcccccbbbbbbcccc']},
+  f5:{label:'F5 山・鄉・城',key:{'.':'Y1',a:'R1',b:'P3',c:'B2'},fence:['Y1','P4',null],
+    pat:['............aaaaaaaa...cc.....','.............aa..aa....ccccc..','...bbb.......aa..aa.cccccccc..','.bbbbbbbb.....bbbb..cccccccccc','bbbbbbbbbbbbbbbbbbbbcccccccccc','bbbbbbbbbbbbbbbbbbbbcccccccccc']}
 };
 function makePreset(key){
   const P=PRESETS[key],hx=k=>EX[k][0];
