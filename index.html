@@ -193,6 +193,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
           <button class="btn" id="btnAddColor">加入色票</button>
           <button class="btn" id="btnCopyMd">複製表格（給方案說明.md）</button>
           <button class="btn" id="btnSaveMd">下載 色票表.md</button>
+          <button class="btn" id="btnXlsx" title="色票、南下、北上、圍籬排列，每格填上實際顏色">下載 Excel（色票＋排列）</button>
           <button class="btn primary" id="btnShare" title="把目前的色塊排列與色票寫進網址，對方打開就看得到">複製分享連結</button>
         </div>
       </div>
@@ -582,6 +583,53 @@ $('#btnCopyMd').addEventListener('click',()=>{
   else{fb.hidden=false;fb.value=md;fb.select();toast('請手動複製下方文字')}
 });
 $('#btnSaveMd').addEventListener('click',()=>offerFile('色票表.md',new Blob(['## 色票表\n\n'+mdTable()+'\n'],{type:'text/markdown'})));
+
+/* ---------- Excel：色票表＋三張排列，每格填實際顏色 ---------- */
+let excelP=null;
+function loadExcel(){
+  if(window.ExcelJS)return Promise.resolve(window.ExcelJS);
+  if(!excelP)excelP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload=()=>res(window.ExcelJS);s.onerror=()=>{excelP=null;rej(new Error('load'))};document.head.append(s)});
+  return excelP;
+}
+const argb=h=>'FF'+h.slice(1).toUpperCase();
+const inkOn=h=>{const n=parseInt(h.slice(1),16),l=(0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255));return l>140?'FF1F1F1F':'FFF5F5F5'};
+const thin={style:'thin',color:{argb:'FFBFBFBF'}},box={top:thin,left:thin,bottom:thin,right:thin};
+function gridSheet(wb,name,title,grid,rowM,codeOf){
+  const ws=wb.addWorksheet(name),cols=grid[0].length,rows=grid.length;
+  ws.getCell(1,1).value=title;ws.getCell(1,1).font={bold:true,size:12};
+  ws.getCell(2,1).value='← 行車前方（左）｜每欄 2 m，每列 '+rowM+' m｜格內為色號，色碼見「色票」';ws.getCell(2,1).font={color:{argb:'FF666666'}};
+  ws.getColumn(1).width=14;
+  ws.getCell(3,1).value='高度＼位置';
+  for(let c=0;c<cols;c++){const cell=ws.getCell(3,c+2);cell.value=(c*2)+'–'+(c*2+2)+' m';cell.alignment={horizontal:'center',textRotation:90};cell.font={size:9};ws.getColumn(c+2).width=6.5}
+  for(let r=0;r<rows;r++){
+    const top=+((rows-r)*rowM).toFixed(2),bot=+((rows-r-1)*rowM).toFixed(2);
+    const lab=ws.getCell(r+4,1);lab.value=bot+'–'+top+' m';lab.font={size:9};ws.getRow(r+4).height=rowM>=0.5?30:Math.max(16,rowM*60);
+    for(let c=0;c<cols;c++){const h=grid[r][c],cell=ws.getCell(r+4,c+2);
+      cell.value=codeOf.get(h)||h;cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:argb(h)}};
+      cell.font={size:8,color:{argb:inkOn(h)}};cell.alignment={horizontal:'center',vertical:'middle'};cell.border=box}
+  }
+  ws.views=[{state:'frozen',xSplit:1,ySplit:3}];
+  return ws;
+}
+$('#btnXlsx').addEventListener('click',async()=>{
+  let XL;try{XL=await loadExcel()}catch(e){toast('Excel 元件載入失敗，請確認網路後再試');return}
+  const wb=new XL.Workbook(),rows=usageRows(),codeOf=new Map(rows.map(r=>[r.p.hex,r.code])),W=state.wall.unitW,F=state.fence.unitW;
+  const ws=wb.addWorksheet('色票');
+  ws.columns=[{header:'色塊',width:9},{header:'色號',width:7},{header:'色碼 HEX',width:11},{header:'R',width:6},{header:'G',width:6},{header:'B',width:6},
+    {header:'名稱',width:30},{header:'Pantone',width:22},{header:'南下（片／'+W+' m）',width:13},{header:(state.wallN?'北上':'北上沿用南下')+'（片／'+W+' m）',width:17},
+    {header:'兩向（片／公里）',width:13},{header:'施工圍籬（m²／'+F+' m）',width:16}];
+  ws.getRow(1).font={bold:true};ws.getRow(1).alignment={vertical:'middle',wrapText:true};ws.getRow(1).height=32;
+  rows.forEach(r=>{const n=parseInt(r.p.hex.slice(1),16);
+    const row=ws.addRow(['',r.code,r.p.hex,n>>16,n>>8&255,n&255,r.p.name||'（未命名）',r.p.pantone||'（待填）',r.s,r.n,r.km,r.fence]);
+    row.height=24;row.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:argb(r.p.hex)}};row.eachCell({includeEmpty:true},c=>{c.border=box;c.alignment={vertical:'middle'}})});
+  ws.views=[{state:'frozen',ySplit:1}];
+  gridSheet(wb,'南下隔音牆','南下隔音牆｜單元 '+W+' m × 牆高 '+state.wall.heightM+' m',state.wall.grid,0.5,codeOf);
+  gridSheet(wb,'北上隔音牆',state.wallN?'北上隔音牆｜單元 '+W+' m × 牆高 '+state.wall.heightM+' m':'北上隔音牆｜沿用南下排列（同南下）',state.wallN?state.wallN.grid:state.wall.grid,0.5,codeOf);
+  gridSheet(wb,'施工圍籬','施工圍籬｜單元 '+F+' m × 高 '+FENCE_H+' m｜水平色帶 '+state.fence.grid.length+' 段',state.fence.grid,+(FENCE_H/state.fence.grid.length).toFixed(3),codeOf);
+  const buf=await wb.xlsx.writeBuffer();
+  offerFile('色票與排列.xlsx',new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+});
 
 /* ---------- 匯出／匯入 ---------- */
 $('#btnPng').addEventListener('click',()=>{
