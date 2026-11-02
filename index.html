@@ -199,6 +199,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       </div>
       <p class="note">點色塊選色。改色碼會同步更新所有用到它的格子。範例色只是示意，請填實際色號與 Pantone。片數以一個單元計，片／公里為南北兩向合計。</p>
       <div class="tablewrap"><table class="paltable" id="palTable"></table></div>
+      <p class="note" id="fbLabel" hidden></p>
       <textarea id="mdFallback" hidden readonly style="width:100%;height:8em;font-family:var(--font-data);font-size:12px"></textarea>
     </section>
   </div>
@@ -576,12 +577,19 @@ function mdTable(){
   usageRows().forEach(r=>lines.push(`| ${r.code} | ${r.p.name||'（未命名）'} | ${r.p.hex} | ${r.p.pantone||'（待填）'} | ${r.s} | ${r.n} | ${r.km} | ${r.fence} |`));
   return lines.join('\n');
 }
-$('#btnCopyMd').addEventListener('click',()=>{
-  const md=mdTable();const fb=$('#mdFallback');
-  const done=()=>toast('已複製色票表，貼到 方案說明.md');
-  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(md).then(done).catch(()=>{fb.hidden=false;fb.value=md;fb.select();toast('無法直接複製，請手動選取下方文字')})}
-  else{fb.hidden=false;fb.value=md;fb.select();toast('請手動複製下方文字')}
-});
+/* 複製：先用剪貼簿 API，被擋（例如在 claude.ai 框架內）就改用 execCommand，再不行才顯示文字框讓人手動複製 */
+async function copyText(text,what,okMsg){
+  const fb=$('#mdFallback'),lb=$('#fbLabel');
+  let ok=false;
+  try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);ok=true}}catch(e){}
+  if(!ok){const ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');ta.style.cssText='position:absolute;left:-9999px;top:0';
+    document.body.append(ta);ta.select();try{ok=document.execCommand('copy')}catch(e){ok=false}ta.remove()}
+  if(ok){fb.hidden=true;lb.hidden=true;toast(okMsg);return}
+  lb.hidden=false;lb.textContent='這個畫面不能自動複製'+what+'，請在下方框內按 Ctrl+A、Ctrl+C 複製：';
+  fb.hidden=false;fb.value=text;fb.style.height=what==='分享連結'?'4.5em':'8em';fb.focus();fb.select();
+  toast('無法自動複製，請手動複製下方的'+what);
+}
+$('#btnCopyMd').addEventListener('click',()=>copyText(mdTable(),'色票表','已複製色票表，貼到 方案說明.md'));
 $('#btnSaveMd').addEventListener('click',()=>offerFile('色票表.md',new Blob(['## 色票表\n\n'+mdTable()+'\n'],{type:'text/markdown'})));
 
 /* ---------- Excel：色票表＋三張排列，每格填實際顏色 ---------- */
@@ -917,10 +925,8 @@ function shareBase(){
 $('#btnShare').addEventListener('click',async()=>{
   const base=shareBase();
   if(!base){toast('這個版本沒有公開網址，請改用公開網址版產生分享連結');return}
-  const link=base+'#d='+await encodeDesign();const fb=$('#mdFallback');
-  const manual=()=>{fb.hidden=false;fb.value=link;fb.select();toast('請手動複製下方連結')};
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(()=>toast('已複製分享連結：對方打開就會看到這組色塊排列與色票')).catch(manual);
-  else manual();
+  const link=base+'#d='+await encodeDesign();
+  copyText(link,'分享連結','已複製分享連結：對方打開會看到這組立面排列（南下、北上、圍籬）與色票');
 });
 (async()=>{
   const m=/#d=([zj][A-Za-z0-9_-]+)/.exec(location.hash);if(!m)return;
